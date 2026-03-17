@@ -1,0 +1,43 @@
+name: Docker Scout CVE Scan
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write        # needed to push to ghcr.io
+      security-events: write # needed for SARIF upload
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/my-vuln-scanner:latest
+
+      - name: Docker Scout CVE Scan
+        uses: docker/scout-action@v1
+        with:
+          command: cves
+          image: ghcr.io/${{ github.repository_owner }}/my-vuln-scanner:latest
+          registry-user: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+          only-severities: critical,high
+          exit-code: false   # don't fail pipeline, just report
